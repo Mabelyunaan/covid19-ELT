@@ -1,7 +1,6 @@
 import pandas as pd
 import os
 
-
 def cleanse(file_path, metric_name, value_column):
     df = pd.read_csv(file_path)
 
