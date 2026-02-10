@@ -1,8 +1,9 @@
+from datetime import datetime
 import pandas as pd
 import os
 
 def cleanse(file_path, metric_name, value_column):
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, index_col=0)
 
     df = df.drop(columns=["Lat", "Long"])
 
@@ -21,46 +22,32 @@ def cleanse(file_path, metric_name, value_column):
 
     df_long["metric"] = metric_name
     return df_long
-file_path ="data","extract","/time_series_confirmed_global.csv"
-metric_name = "confirmed"
-value_column = "cases"
-cleanse(file_path, metric_name, value_column)
 
+def transform_data(extract_path, transform_path):
+    confirmed_df = cleanse(
+        os.path.join(extract_path, "time_series_covid19_confirmed_global.csv"),"confirmed", "cases")
 
-# cleanse("data/extract/time_series_covid19_deaths_global.csv")
-# cleanse("data/extract/time_series_covid19_recovered_global.csv")
+    deaths_df = cleanse(
+        os.path.join(extract_path, "time_series_covid19_deaths_global.csv"), "deaths","cases")
 
+    recovered_df = cleanse(
+        os.path.join(extract_path, "time_series_covid19_recovered_global.csv"),"recovered","cases")
 
-# def transform_data(extract_path, transform_path):
-#     confirmed_df = cleanse(
-#         os.path.join(extract_path, "time_series_covid19_confirmed_global.csv"),
-#         "confirmed",
-#         "cases"
-#     )
+    final_df = pd.concat([confirmed_df, deaths_df, recovered_df])
 
-#     deaths_df = cleanse(
-#         os.path.join(extract_path, "time_series_covid19_deaths_global.csv"),
-#         "deaths",
-#         "cases"
-#     )
+    final_df["date"] = pd.to_datetime(final_df["date"], format="%m/%d/%y")
+    final_df["cases"] = final_df["cases"].fillna(0)
+    final_df = final_df.drop_duplicates()
 
-#     recovered_df = cleanse(
-#         os.path.join(extract_path, "time_series_covid19_recovered_global.csv"),
-#         "recovered",
-#         "cases"
-#     )
+    if (final_df["cases"] < 0).any():
+        num_negatives = (final_df["cases"] < 0).sum()
+        print(f"Sanity Check: {num_negatives} negative cases found and corrected.")
+        final_df["cases"] = final_df["cases"].clip(lower=0)
 
-#     final_df = pd.concat([confirmed_df, deaths_df, recovered_df])
+    os.makedirs(transform_path, exist_ok=True)
+    output_file = os.path.join(transform_path, "covid_metrics_long.csv")
+    final_df.to_csv(output_file, index=False)
 
-#     final_df["date"] = pd.to_datetime(final_df["date"], format="%m/%d/%y")
-#     final_df["cases"] = final_df["cases"].fillna(0)
-#     final_df = final_df.drop_duplicates()
+    return output_file
 
-#     if (final_df["cases"] < 0).any():
-#         raise ValueError("Negative case values found")
-
-#     os.makedirs(transform_path, exist_ok=True)
-#     output_file = os.path.join(transform_path, "covid_metrics_long.csv")
-#     final_df.to_csv(output_file, index=False)
-
-#     return output_file
+transform_data("data/extract","data/transform")
